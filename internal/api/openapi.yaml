@@ -1,0 +1,2660 @@
+openapi: 3.1.0
+info:
+  title: MoxApp API
+  description: |
+    High-performance concurrent HTTP load testing tool with DNS timing metrics.
+    
+    This API provides endpoints for:
+    - **Outgoing Traffic Management**: Configure and control external API calls
+    - **Incoming Traffic Simulation**: Define mock routes with configurable response patterns
+    - **Metrics & Monitoring**: Real-time metrics collection and health monitoring
+    - **Scheduler Control**: Pause, resume, or emergency stop the load test
+  version: 1.0.0
+  contact:
+    name: MoxApp Team
+  license:
+    name: Proprietary
+    identifier: LicenseRef-MoxApp
+
+servers:
+  - url: __SERVER_URL__
+    description: Current server
+
+tags:
+  - name: Health
+    description: Health check and system status
+  - name: Metrics
+    description: Traffic metrics collection (outgoing and incoming)
+  - name: Outgoing Settings
+    description: Outgoing traffic runtime settings (multiplier, concurrency, logging)
+  - name: Outgoing Endpoints
+    description: Outgoing endpoint CRUD operations
+  - name: Outgoing Control
+    description: Outgoing scheduler control (pause/resume/emergency stop)
+  - name: Auth Configs
+    description: Authentication configuration management for outgoing endpoints
+  - name: Incoming Routes
+    description: Incoming route simulation management
+  - name: Incoming Control
+    description: Incoming routes enable/disable control
+  - name: Simulated Routes
+    description: Simulated incoming route execution
+  - name: Config
+    description: Import and export full runtime configuration
+
+paths:
+  /:
+    get:
+      tags:
+        - Health
+      summary: API information
+      description: Returns basic API information and list of available endpoints
+      operationId: getApiInfo
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiInfo'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns health status including memory, goroutines, and scheduler stats
+      operationId: getHealth
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/metrics:
+    get:
+      tags:
+        - Metrics
+      summary: Get metrics (summary + snapshots)
+      description: Returns merged metrics summary and full snapshots for outgoing and incoming
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Metrics summary with snapshots
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+
+  /api/metrics/reset:
+    post:
+      tags:
+        - Metrics
+      summary: Reset all metrics
+      description: Resets both outgoing and incoming traffic metrics counters
+      operationId: resetAllMetrics
+      responses:
+        '200':
+          description: All metrics reset confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+
+  /api/metrics/outgoing:
+    get:
+      tags:
+        - Metrics
+      summary: Get outgoing metrics
+      description: Returns full outgoing metrics snapshot including per-endpoint and per-domain statistics
+      operationId: getOutgoingMetrics
+      responses:
+        '200':
+          description: Outgoing metrics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsSnapshot'
+
+  /api/metrics/outgoing/reset:
+    post:
+      tags:
+        - Metrics
+      summary: Reset outgoing metrics
+      description: Resets outgoing traffic metrics counters only
+      operationId: resetOutgoingMetrics
+      responses:
+        '200':
+          description: Outgoing metrics reset confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/metrics/incoming:
+    get:
+      tags:
+        - Metrics
+      summary: Get incoming metrics
+      description: Returns metrics for incoming route simulation
+      operationId: getIncomingMetrics
+      responses:
+        '200':
+          description: Incoming metrics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingMetricsSnapshot'
+        '503':
+          description: Incoming metrics not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/metrics/incoming/reset:
+    post:
+      tags:
+        - Metrics
+      summary: Reset incoming metrics
+      description: Resets incoming traffic metrics counters only
+      operationId: resetIncomingMetrics
+      responses:
+        '200':
+          description: Incoming metrics reset confirmation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '503':
+          description: Incoming metrics not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/settings:
+    get:
+      tags:
+        - Outgoing Settings
+      summary: Get all outgoing settings
+      description: Returns all outgoing traffic configuration settings (multiplier, concurrency, logging, etc.)
+      operationId: getOutgoingSettings
+      responses:
+        '200':
+          description: Runtime settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettingsResponse'
+
+  /api/outgoing/settings/multiplier:
+    get:
+      tags:
+        - Outgoing Settings
+      summary: Get outgoing load multiplier
+      description: Returns the current global load multiplier for outgoing requests
+      operationId: getOutgoingMultiplier
+      responses:
+        '200':
+          description: Current multiplier value
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  global_multiplier:
+                    type: number
+                    format: double
+                    example: 1.0
+    post:
+      tags:
+        - Outgoing Settings
+      summary: Set outgoing load multiplier
+      description: Updates the global load multiplier for outgoing requests. Use 0.5 for 50% load, 2.0 for 200% load, etc.
+      operationId: setOutgoingMultiplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - multiplier
+              properties:
+                multiplier:
+                  type: number
+                  format: double
+                  minimum: 0
+                  description: New multiplier value (must be non-negative)
+                  example: 1.5
+      responses:
+        '200':
+          description: Multiplier updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultiplierUpdateResponse'
+        '400':
+          description: Invalid multiplier value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/settings/concurrency:
+    get:
+      tags:
+        - Outgoing Settings
+      summary: Get concurrent requests limit
+      description: Returns the current maximum number of concurrent outgoing requests
+      operationId: getOutgoingConcurrency
+      responses:
+        '200':
+          description: Current concurrency limit
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  concurrent_requests:
+                    type: integer
+                    example: 30
+    post:
+      tags:
+        - Outgoing Settings
+      summary: Set concurrent requests limit
+      description: Updates the maximum number of concurrent outgoing requests allowed
+      operationId: setOutgoingConcurrency
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - concurrent
+              properties:
+                concurrent:
+                  type: integer
+                  minimum: 1
+                  description: New concurrency limit (must be positive)
+                  example: 50
+      responses:
+        '200':
+          description: Concurrency limit updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConcurrencyUpdateResponse'
+        '400':
+          description: Invalid concurrency value
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/settings/log-requests:
+    get:
+      tags:
+        - Outgoing Settings
+      summary: Get outgoing request logging setting
+      description: Returns whether individual outgoing requests are being logged
+      operationId: getOutgoingLogRequests
+      responses:
+        '200':
+          description: Current log requests setting
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  log_all_requests:
+                    type: boolean
+                    example: false
+    post:
+      tags:
+        - Outgoing Settings
+      summary: Set outgoing request logging
+      description: Enables or disables logging of individual outgoing requests
+      operationId: setOutgoingLogRequests
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - log_requests
+              properties:
+                log_requests:
+                  type: boolean
+                  description: Whether to log all individual requests
+                  example: true
+      responses:
+        '200':
+          description: Log requests setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogRequestsUpdateResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/endpoints:
+    get:
+      tags:
+        - Outgoing Endpoints
+      summary: List all outgoing endpoints
+      description: Returns all configured outgoing endpoints
+      operationId: listOutgoingEndpoints
+      responses:
+        '200':
+          description: List of endpoints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointListResponse'
+    post:
+      tags:
+        - Outgoing Endpoints
+      summary: Create outgoing endpoint
+      description: Creates a new outgoing endpoint configuration
+      operationId: createOutgoingEndpoint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndpointRequest'
+      responses:
+        '201':
+          description: Endpoint created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointCreateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Endpoint already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/endpoints/{name}:
+    get:
+      tags:
+        - Outgoing Endpoints
+      summary: Get outgoing endpoint by name
+      description: Returns a specific outgoing endpoint configuration
+      operationId: getOutgoingEndpoint
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Endpoint name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Endpoint configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endpoint'
+        '404':
+          description: Endpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - Outgoing Endpoints
+      summary: Update outgoing endpoint
+      description: Updates an existing outgoing endpoint configuration
+      operationId: updateOutgoingEndpoint
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Endpoint name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EndpointRequest'
+      responses:
+        '200':
+          description: Endpoint updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointUpdateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Endpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Outgoing Endpoints
+      summary: Delete outgoing endpoint
+      description: Deletes an outgoing endpoint by name
+      operationId: deleteOutgoingEndpoint
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Endpoint name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Endpoint deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Endpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/endpoints/bulk:
+    post:
+      tags:
+        - Outgoing Endpoints
+      summary: Bulk create outgoing endpoints
+      description: Creates multiple outgoing endpoints at once
+      operationId: bulkCreateOutgoingEndpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/EndpointRequest'
+      responses:
+        '200':
+          description: All endpoints created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResponse'
+        '206':
+          description: Partial success - some endpoints failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResponse'
+        '400':
+          description: All endpoints failed to create
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkOperationResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Outgoing Endpoints
+      summary: Bulk delete outgoing endpoints
+      description: Deletes multiple outgoing endpoints by name
+      operationId: bulkDeleteOutgoingEndpoints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - names
+              properties:
+                names:
+                  type: array
+                  items:
+                    type: string
+                  description: List of endpoint names to delete
+      responses:
+        '200':
+          description: All endpoints deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '206':
+          description: Partial success - some endpoints failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '400':
+          description: All endpoints failed to delete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkDeleteResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/control:
+    get:
+      tags:
+        - Outgoing Control
+      summary: Get outgoing scheduler status
+      description: Returns current outgoing scheduler control status
+      operationId: getOutgoingControlStatus
+      responses:
+        '200':
+          description: Scheduler status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlStatus'
+        '503':
+          description: Scheduler not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Outgoing Control
+      summary: Control outgoing scheduler
+      description: |
+        Execute outgoing scheduler control actions:
+        - `pause`: Stop scheduling new requests (in-flight requests complete)
+        - `resume`: Resume scheduling requests
+        - `emergency_stop`: Immediately stop all operations and cancel in-flight requests
+      operationId: controlOutgoingScheduler
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - action
+              properties:
+                action:
+                  type: string
+                  enum:
+                    - pause
+                    - resume
+                    - emergency_stop
+                  description: Control action to execute
+      responses:
+        '200':
+          description: Action executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ControlActionResponse'
+        '400':
+          description: Invalid action
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Scheduler not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/control/endpoint:
+    post:
+      tags:
+        - Outgoing Control
+      summary: Enable/disable outgoing endpoint
+      description: Enables or disables a specific outgoing endpoint
+      operationId: setOutgoingEndpointEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - enabled
+              properties:
+                name:
+                  type: string
+                  description: Endpoint name
+                enabled:
+                  type: boolean
+                  description: Enable or disable the endpoint
+      responses:
+        '200':
+          description: Endpoint status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointEnableResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Endpoint not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/control/endpoints/bulk:
+    post:
+      tags:
+        - Outgoing Control
+      summary: Bulk enable/disable outgoing endpoints
+      description: Enables or disables multiple outgoing endpoints at once
+      operationId: bulkSetOutgoingEndpointsEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - names
+                - enabled
+              properties:
+                names:
+                  type: array
+                  items:
+                    type: string
+                  description: List of endpoint names
+                enabled:
+                  type: boolean
+                  description: Enable or disable the endpoints
+      responses:
+        '200':
+          description: Endpoints status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkEnableResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/control/endpoints/all:
+    post:
+      tags:
+        - Outgoing Control
+      summary: Enable/disable all outgoing endpoints
+      description: Enables or disables all outgoing endpoints
+      operationId: setAllOutgoingEndpointsEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+                  description: Enable or disable all endpoints
+      responses:
+        '200':
+          description: All endpoints status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AllEndpointsEnableResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/auth-configs:
+    get:
+      tags:
+        - Auth Configs
+      summary: List auth configs
+      description: Returns all auth configs (credentials masked)
+      operationId: listAuthConfigs
+      responses:
+        '200':
+          description: Auth configs list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  auth_configs:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/AuthConfig'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Auth Configs
+      summary: Create auth config
+      description: Creates a new auth config
+      operationId: createAuthConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthConfigRequest'
+      responses:
+        '201':
+          description: Auth config created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  auth_config:
+                    $ref: '#/components/schemas/AuthConfig'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Auth config already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/auth-configs/{name}:
+    get:
+      tags:
+        - Auth Configs
+      summary: Get auth config
+      description: Returns a single auth config by name (credentials masked)
+      operationId: getAuthConfig
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Auth config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthConfig'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - Auth Configs
+      summary: Update auth config
+      description: Updates an existing auth config
+      operationId: updateAuthConfig
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthConfigRequest'
+      responses:
+        '200':
+          description: Auth config updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  auth_config:
+                    $ref: '#/components/schemas/AuthConfig'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Auth config already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Auth Configs
+      summary: Delete auth config
+      description: Deletes an auth config by name
+      operationId: deleteAuthConfig
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Auth config deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/auth-configs/{name}/status:
+    get:
+      tags:
+        - Auth Configs
+      summary: Get auth token status
+      description: Returns token status for an auth config
+      operationId: getAuthTokenStatus
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenStatus'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Token manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/auth-configs/{name}/refresh:
+    post:
+      tags:
+        - Auth Configs
+      summary: Refresh auth token
+      description: Forces token refresh for an auth config
+      operationId: refreshAuthToken
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  token:
+                    type: string
+        '400':
+          description: Token endpoint not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Token manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/outgoing/auth-configs/{name}/token:
+    post:
+      tags:
+        - Auth Configs
+      summary: Set auth token
+      description: Manually sets token for an auth config
+      operationId: setAuthToken
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                expires_in:
+                  type: integer
+                  description: Token expiry in seconds
+      responses:
+        '200':
+          description: Token set
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Auth config not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Token manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/incoming/routes:
+    get:
+      tags:
+        - Incoming Routes
+      summary: List all incoming routes
+      description: Returns all configured incoming route simulations
+      operationId: listIncomingRoutes
+      responses:
+        '200':
+          description: List of incoming routes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteListResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Incoming Routes
+      summary: Create incoming route
+      description: Creates a new incoming route simulation
+      operationId: createIncomingRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncomingRouteRequest'
+      responses:
+        '201':
+          description: Incoming route created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteCreateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/incoming/routes/{name}:
+    get:
+      tags:
+        - Incoming Routes
+      summary: Get incoming route by name
+      description: Returns a specific incoming route configuration
+      operationId: getIncomingRoute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Route name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Incoming route configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRoute'
+        '400':
+          description: Route name required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - Incoming Routes
+      summary: Update incoming route
+      description: Updates an existing incoming route configuration
+      operationId: updateIncomingRoute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Route name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IncomingRouteRequest'
+      responses:
+        '200':
+          description: Route updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteUpdateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Incoming Routes
+      summary: Delete incoming route
+      description: Deletes an incoming route by name
+      operationId: deleteIncomingRoute
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: Route name
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Route deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteDeleteResponse'
+        '400':
+          description: Route name required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/incoming/routes/reload:
+    post:
+      tags:
+        - Incoming Routes
+      summary: Reload routes from config
+      description: |
+        Reloads all incoming routes from the static configuration file.
+        **Warning**: This replaces all runtime-created routes with the static configuration.
+      operationId: reloadIncomingRoutes
+      responses:
+        '200':
+          description: Routes reloaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteReloadResponse'
+        '400':
+          description: No config file path configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to reload config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/incoming/control:
+    get:
+      tags:
+        - Incoming Control
+      summary: Get incoming routes status
+      description: Returns current status of incoming routes (enabled/disabled counts)
+      operationId: getIncomingControlStatus
+      responses:
+        '200':
+          description: Incoming routes status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingControlStatus'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Incoming Control
+      summary: Enable/disable all incoming routes
+      description: Enables or disables all incoming route simulations
+      operationId: setIncomingRoutesEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - enabled
+              properties:
+                enabled:
+                  type: boolean
+                  description: Enable or disable all incoming routes
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingControlResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/incoming/control/route:
+    post:
+      tags:
+        - Incoming Control
+      summary: Enable/disable specific route
+      description: Enables or disables a specific incoming route
+      operationId: setIncomingRouteEnabled
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - enabled
+              properties:
+                name:
+                  type: string
+                  description: Route name
+                enabled:
+                  type: boolean
+                  description: Enable or disable the route
+      responses:
+        '200':
+          description: Route status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomingRouteControlResponse'
+        '400':
+          description: Invalid request or route name required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Route not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/config/export:
+    get:
+      tags:
+        - Config
+      summary: Export full config (YAML)
+      description: Returns current in-memory configuration as YAML
+      operationId: exportConfig
+      responses:
+        '200':
+          description: YAML config
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+  /api/config/import:
+    post:
+      tags:
+        - Config
+      summary: Import full config
+      description: Replaces the in-memory configuration with provided YAML
+      operationId: importConfig
+      requestBody:
+        required: true
+        content:
+          application/x-yaml:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Config imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          description: Invalid YAML or validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Configuration manager not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sim:
+    get:
+      tags:
+        - Simulated Routes
+      summary: Simulated routes info
+      description: Returns information about available simulated routes
+      operationId: getSimulatedRoutesInfo
+      responses:
+        '200':
+          description: Simulated routes information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimulatedRoutesInfo'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /sim/{path}:
+    get:
+      tags:
+        - Simulated Routes
+      summary: Execute simulated route (GET)
+      description: |
+        Executes a simulated incoming route and returns an echo response.
+        The response status code and delay are determined by the route's configured probabilities.
+      operationId: executeSimulatedRouteGet
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Route path (supports prefix matching)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response (status depends on route config)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+        '404':
+          description: No matching route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags:
+        - Simulated Routes
+      summary: Execute simulated route (POST)
+      description: Executes a simulated incoming route with POST method
+      operationId: executeSimulatedRoutePost
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Route path (supports prefix matching)
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              description: Any JSON body (echoed in response)
+      responses:
+        '200':
+          description: Successful response (status depends on route config)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+        '404':
+          description: No matching route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags:
+        - Simulated Routes
+      summary: Execute simulated route (PUT)
+      description: Executes a simulated incoming route with PUT method
+      operationId: executeSimulatedRoutePut
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Route path (supports prefix matching)
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Successful response (status depends on route config)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+        '404':
+          description: No matching route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - Simulated Routes
+      summary: Execute simulated route (DELETE)
+      description: Executes a simulated incoming route with DELETE method
+      operationId: executeSimulatedRouteDelete
+      parameters:
+        - name: path
+          in: path
+          required: true
+          description: Route path (supports prefix matching)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response (status depends on route config)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+        '404':
+          description: No matching route found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Incoming routes not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ApiInfo:
+      type: object
+      properties:
+        app:
+          type: string
+          example: moxapp
+        version:
+          type: string
+          example: "1.0.0"
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: healthy
+        app:
+          type: string
+          example: moxapp
+        version:
+          type: string
+          example: "1.0.0"
+        timestamp:
+          type: string
+          format: date-time
+        go_version:
+          type: string
+          example: go1.25.6
+        goroutines:
+          type: integer
+          example: 15
+        memory_alloc_mb:
+          type: number
+          format: float
+          example: 5.23
+        memory_sys_mb:
+          type: number
+          format: float
+          example: 12.45
+        total_requests:
+          type: integer
+          format: int64
+          example: 1234
+        requests_per_sec:
+          type: number
+          format: float
+          example: 45.67
+        success_rate:
+          type: number
+          format: float
+          example: 0.98
+        requests_in_flight:
+          type: integer
+          example: 5
+        requests_skipped:
+          type: integer
+          format: int64
+          example: 0
+        scheduler_running:
+          type: boolean
+        scheduler_paused:
+          type: boolean
+        global_enabled:
+          type: boolean
+        endpoint_count:
+          type: integer
+          example: 10
+        enabled_endpoints:
+          type: integer
+          example: 8
+        config_manager:
+          type: boolean
+        incoming_routes_enabled:
+          type: boolean
+        incoming_routes_count:
+          type: integer
+          example: 5
+        incoming_routes_active:
+          type: integer
+          example: 4
+        incoming_total_requests:
+          type: integer
+          format: int64
+          example: 500
+        incoming_requests_per_sec:
+          type: number
+          format: float
+          example: 12.5
+
+    MetricsResponse:
+      type: object
+      description: Merged metrics summary and snapshots
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the response
+        uptime_seconds:
+          type: number
+          format: float
+          description: Outgoing metrics uptime in seconds
+        outgoing:
+          type: object
+          description: Outgoing traffic summary
+          properties:
+            total_requests:
+              type: integer
+              format: int64
+            total_failures:
+              type: integer
+              format: int64
+            requests_per_sec:
+              type: number
+              format: float
+            success_rate:
+              type: number
+              format: float
+            endpoint_count:
+              type: integer
+            domain_count:
+              type: integer
+            error_summary:
+              type: object
+              properties:
+                timeout:
+                  type: integer
+                  format: int64
+                dns:
+                  type: integer
+                  format: int64
+                connection:
+                  type: integer
+                  format: int64
+                http:
+                  type: integer
+                  format: int64
+        incoming:
+          type: object
+          description: Incoming traffic summary
+          properties:
+            available:
+              type: boolean
+            total_requests:
+              type: integer
+              format: int64
+            requests_per_sec:
+              type: number
+              format: float
+            active_routes:
+              type: integer
+        outgoing_snapshot:
+          $ref: '#/components/schemas/MetricsSnapshot'
+        incoming_snapshot:
+          oneOf:
+            - $ref: '#/components/schemas/IncomingMetricsSnapshot'
+            - type: 'null'
+
+    SettingsResponse:
+      type: object
+      properties:
+        global_multiplier:
+          type: number
+          format: double
+          example: 1.0
+          description: Global load multiplier
+        concurrent_requests:
+          type: integer
+          example: 30
+          description: Maximum concurrent requests
+        log_all_requests:
+          type: boolean
+          example: false
+          description: Whether to log all individual requests
+        api_port:
+          type: integer
+          example: 8080
+          description: API server port
+        enabled:
+          type: boolean
+          example: true
+          description: Whether load testing is globally enabled
+
+    MultiplierUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Global multiplier updated
+        old_multiplier:
+          type: number
+          format: double
+          example: 1.0
+        new_multiplier:
+          type: number
+          format: double
+          example: 1.5
+
+    ConcurrencyUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Concurrent requests limit updated
+        old_concurrent:
+          type: integer
+          example: 30
+        new_concurrent:
+          type: integer
+          example: 50
+
+    LogRequestsUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Log all requests setting updated
+        old_log_requests:
+          type: boolean
+          example: false
+        new_log_requests:
+          type: boolean
+          example: true
+
+    MetricsSnapshot:
+      type: object
+      properties:
+        uptime_seconds:
+          type: number
+          format: float
+        total_requests:
+          type: integer
+          format: int64
+        total_successes:
+          type: integer
+          format: int64
+        requests_per_second:
+          type: number
+          format: float
+        success_rate:
+          type: number
+          format: float
+        total_failures:
+          type: integer
+          format: int64
+        collected_at:
+          type: string
+          format: date-time
+        endpoints:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/EndpointMetrics'
+        dns_stats_by_domain:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/DomainDnsStats'
+
+    EndpointMetrics:
+      type: object
+      properties:
+        total_requests:
+          type: integer
+          format: int64
+        successful:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        success_rate:
+          type: number
+          format: float
+        timeout_errors:
+          type: integer
+          format: int64
+        dns_errors:
+          type: integer
+          format: int64
+        connection_errors:
+          type: integer
+          format: int64
+        http_errors:
+          type: integer
+          format: int64
+        other_errors:
+          type: integer
+          format: int64
+        avg_total_time_ms:
+          type: number
+          format: float
+        avg_dns_time_ms:
+          type: number
+          format: float
+        avg_connect_time_ms:
+          type: number
+          format: float
+        p95_total_time_ms:
+          type: number
+          format: float
+        p99_total_time_ms:
+          type: number
+          format: float
+        max_total_time_ms:
+          type: number
+          format: float
+        p95_dns_time_ms:
+          type: number
+          format: float
+        last_status_code:
+          type: integer
+        last_error:
+          type: string
+        last_success:
+          type: string
+        url_pattern:
+          type: string
+        hostname:
+          type: string
+
+    DomainDnsStats:
+      type: object
+      properties:
+        total_lookups:
+          type: integer
+          format: int64
+        successful_lookups:
+          type: integer
+          format: int64
+        failed_lookups:
+          type: integer
+          format: int64
+        avg_resolution_ms:
+          type: number
+          format: float
+        p95_resolution_ms:
+          type: number
+          format: float
+        max_resolution_ms:
+          type: number
+          format: float
+        min_resolution_ms:
+          type: number
+          format: float
+        last_error:
+          type: string
+
+
+    Endpoint:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique endpoint identifier
+          example: user_api
+        url_template:
+          type: string
+          description: URL template with placeholders
+          example: "{{ env \"API_URL\" }}/users/{{ randomInt 1 1000 }}"
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, PATCH]
+          example: GET
+        frequency:
+          type: number
+          format: float
+          description: Requests per minute
+          example: 30
+        auth:
+          description: Authentication config reference or inline override
+        timeout:
+          type: integer
+          description: Request timeout in seconds
+          example: 30
+        enabled:
+          type: boolean
+          description: Whether endpoint is active
+          example: true
+        body:
+          type: string
+          description: Request body template (for POST/PUT)
+
+    EndpointRequest:
+      type: object
+      required:
+        - name
+        - url_template
+        - method
+        - frequency
+      properties:
+        name:
+          type: string
+          description: Unique endpoint identifier
+          example: user_api
+        url_template:
+          type: string
+          description: URL template with placeholders
+          example: "{{ env \"API_URL\" }}/users/{{ randomInt 1 1000 }}"
+        method:
+          type: string
+          enum: [GET, POST, PUT, DELETE, PATCH]
+          example: GET
+        frequency:
+          type: number
+          format: float
+          description: Requests per minute
+          example: 30
+        auth:
+          description: Authentication config reference or inline override
+        timeout:
+          type: integer
+          description: Request timeout in seconds
+          example: 30
+        enabled:
+          type: boolean
+          description: Whether endpoint is active
+          default: true
+        body:
+          type: string
+          description: Request body template
+
+    EndpointListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        endpoints:
+          type: array
+          items:
+            $ref: '#/components/schemas/Endpoint'
+
+    EndpointCreateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Endpoint created successfully
+        endpoint:
+          $ref: '#/components/schemas/Endpoint'
+
+    EndpointUpdateResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: Endpoint updated successfully
+        endpoint:
+          $ref: '#/components/schemas/Endpoint'
+
+    BulkOperationResponse:
+      type: object
+      properties:
+        created:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+        summary:
+          type: object
+          properties:
+            total_requested:
+              type: integer
+            created:
+              type: integer
+            failed:
+              type: integer
+
+    BulkDeleteResponse:
+      type: object
+      properties:
+        deleted:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+        summary:
+          type: object
+          properties:
+            total_requested:
+              type: integer
+            deleted:
+              type: integer
+            failed:
+              type: integer
+
+    ControlStatus:
+      type: object
+      properties:
+        global_enabled:
+          type: boolean
+        paused:
+          type: boolean
+        scheduler_running:
+          type: boolean
+        requests_scheduled:
+          type: integer
+          format: int64
+        requests_in_flight:
+          type: integer
+        requests_skipped:
+          type: integer
+          format: int64
+        total_endpoints:
+          type: integer
+        enabled_endpoints:
+          type: integer
+        disabled_endpoints:
+          type: integer
+
+    ControlActionResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        paused:
+          type: boolean
+
+    EndpointEnableResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        endpoint:
+          type: string
+        enabled:
+          type: boolean
+
+    BulkEnableResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        updated:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
+        summary:
+          type: object
+          properties:
+            total_requested:
+              type: integer
+            updated:
+              type: integer
+            failed:
+              type: integer
+
+    AllEndpointsEnableResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+        updated:
+          type: integer
+        enabled:
+          type: boolean
+
+    IncomingRoute:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Unique route identifier
+          example: call_info
+        path:
+          type: string
+          description: URL path (supports prefix matching)
+          example: /api/call_info
+        method:
+          type: string
+          description: HTTP method or "*" for any
+          example: GET
+        enabled:
+          type: boolean
+          description: Whether route is active
+          example: true
+        responses:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomingResponseConfig'
+
+    IncomingResponseConfig:
+      type: object
+      required:
+        - status
+        - share
+        - min_response_ms
+        - max_response_ms
+      properties:
+        status:
+          type: integer
+          description: HTTP status code (100-599)
+          example: 200
+        share:
+          type: number
+          format: float
+          description: Probability weight (0.0-1.0, all must sum to 1.0)
+          example: 0.9
+        min_response_ms:
+          type: integer
+          description: Minimum simulated response time in milliseconds
+          example: 100
+        max_response_ms:
+          type: integer
+          description: Maximum simulated response time in milliseconds
+          example: 300
+
+    IncomingRouteRequest:
+      type: object
+      required:
+        - name
+        - path
+        - method
+        - responses
+      properties:
+        name:
+          type: string
+          description: Unique route identifier
+          example: user_service
+        path:
+          type: string
+          description: URL path (must start with /)
+          example: /api/users
+        method:
+          type: string
+          description: HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS) or "*" for any
+          example: GET
+        enabled:
+          type: boolean
+          description: Whether route is active
+          default: true
+        responses:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/IncomingResponseConfig'
+          description: Response configurations (shares must sum to 1.0)
+
+    IncomingRouteListResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        count:
+          type: integer
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomingRoute'
+        sim_prefix:
+          type: string
+          example: /sim
+
+    IncomingRouteCreateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming route created
+        route:
+          $ref: '#/components/schemas/IncomingRoute'
+        sim_path:
+          type: string
+          example: /sim/api/users
+
+    IncomingRouteUpdateResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming route updated
+        route:
+          $ref: '#/components/schemas/IncomingRoute'
+        sim_path:
+          type: string
+          example: /sim/api/users
+
+    IncomingRouteDeleteResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming route deleted
+        name:
+          type: string
+
+    IncomingRouteReloadResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming routes reloaded from config
+        config_path:
+          type: string
+        count:
+          type: integer
+        routes:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomingRoute'
+
+    IncomingMetricsSnapshot:
+      type: object
+      properties:
+        total_requests:
+          type: integer
+          format: int64
+        requests_per_second:
+          type: number
+          format: float
+        uptime_seconds:
+          type: number
+          format: float
+        collected_at:
+          type: string
+          format: date-time
+        routes:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/IncomingRouteMetrics'
+
+    IncomingRouteMetrics:
+      type: object
+      properties:
+        route_name:
+          type: string
+        route_path:
+          type: string
+        total_requests:
+          type: integer
+          format: int64
+        responses_by_status:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        avg_response_ms:
+          type: number
+          format: float
+        p95_response_ms:
+          type: number
+          format: float
+        p99_response_ms:
+          type: number
+          format: float
+        max_response_ms:
+          type: number
+          format: float
+        min_response_ms:
+          type: number
+          format: float
+        last_request:
+          type: string
+          format: date-time
+
+    IncomingControlStatus:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        total_routes:
+          type: integer
+        enabled_routes:
+          type: integer
+
+    IncomingControlResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming routes status updated
+        enabled:
+          type: boolean
+
+    IncomingRouteControlResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: incoming route status updated
+        name:
+          type: string
+        enabled:
+          type: boolean
+
+    SimulatedRoutesInfo:
+      type: object
+      properties:
+        description:
+          type: string
+          example: Simulated incoming routes endpoint
+        prefix:
+          type: string
+          example: /sim
+        enabled_routes:
+          type: integer
+        routes:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              path:
+                type: string
+              method:
+                type: string
+              responses:
+                type: integer
+        usage:
+          type: string
+          example: Send requests to /sim/{path} to trigger simulated responses
+
+    EchoResponse:
+      type: object
+      description: Echo response from simulated routes
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        matched_route:
+          type: object
+          properties:
+            name:
+              type: string
+            path:
+              type: string
+            method:
+              type: string
+        request:
+          type: object
+          properties:
+            method:
+              type: string
+            path:
+              type: string
+            path_suffix:
+              type: string
+              description: Extra path after the matched route prefix
+            headers:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+            query_params:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+            body:
+              description: Parsed request body (JSON or string)
+            remote_addr:
+              type: string
+        response:
+          type: object
+          properties:
+            status:
+              type: integer
+            simulated_delay_ms:
+              type: number
+              format: float
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+    AuthConfig:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [none, bearer, api_key, api_key_query, basic, custom_header]
+        description:
+          type: string
+        header_name:
+          type: string
+        query_param:
+          type: string
+        env_var:
+          type: string
+        username_env:
+          type: string
+        password_env:
+          type: string
+        token_endpoint:
+          $ref: '#/components/schemas/AuthTokenEndpoint'
+        refresh_before_expiry:
+          type: integer
+
+    AuthConfigRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [none, bearer, api_key, api_key_query, basic, custom_header]
+        description:
+          type: string
+        header_name:
+          type: string
+        query_param:
+          type: string
+        env_var:
+          type: string
+        username_env:
+          type: string
+        password_env:
+          type: string
+        token_endpoint:
+          $ref: '#/components/schemas/AuthTokenEndpoint'
+        refresh_before_expiry:
+          type: integer
+
+    AuthTokenEndpoint:
+      type: object
+      properties:
+        url:
+          type: string
+        url_env:
+          type: string
+        method:
+          type: string
+        username_env:
+          type: string
+        password_env:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        body:
+          description: Any JSON body
+        token_path:
+          type: string
+        expires_path:
+          type: string
+
+    AuthTokenStatus:
+      type: object
+      properties:
+        has_token:
+          type: boolean
+        expires_at:
+          type: string
+          format: date-time
+        is_expired:
+          type: boolean
+        expires_in_seconds:
+          type: integer

@@ -1,0 +1,195 @@
+# MoxApp DNS Load Test - Example Configuration
+# Copy this file to configs/endpoints.yaml and adjust values for your environment.
+
+global_multiplier: 1.0
+concurrent_requests: 20
+log_all_requests: false
+api_port: 8080
+
+# Example authentication configurations
+# These are referenced by name in outgoing_endpoints auth fields
+auth_configs:
+  api_key_header:
+    name: api_key_header
+    type: api_key
+    header_name: "x-api-key"
+    env_var: "EXAMPLE_API_KEY"
+    description: "API key passed via header"
+
+  api_key_query:
+    name: api_key_query
+    type: api_key_query
+    query_param: "api_key"
+    env_var: "EXAMPLE_API_KEY"
+    description: "API key passed via query param"
+
+  bearer_static:
+    name: bearer_static
+    type: bearer
+    env_var: "EXAMPLE_BEARER_TOKEN"
+    description: "Static bearer token from env"
+
+  bearer_refresh:
+    name: bearer_refresh
+    type: bearer
+    description: "Bearer token refreshed via token endpoint"
+    refresh_before_expiry: 60
+    token_endpoint:
+      url_env: "EXAMPLE_TOKEN_URL"
+      method: POST
+      headers:
+        content-type: "application/json"
+      body:
+        client_id: "{{ env \"EXAMPLE_CLIENT_ID\" }}"
+        client_secret: "{{ env \"EXAMPLE_CLIENT_SECRET\" }}"
+        grant_type: "client_credentials"
+      token_path: "access_token"
+      expires_path: "expires_in"
+
+  basic_auth:
+    name: basic_auth
+    type: basic
+    username_env: "EXAMPLE_BASIC_USER"
+    password_env: "EXAMPLE_BASIC_PASS"
+    description: "HTTP basic auth"
+
+  custom_header:
+    name: custom_header
+    type: custom_header
+    header_name: "x-custom-auth"
+    env_var: "EXAMPLE_CUSTOM_HEADER"
+    description: "Custom header token"
+
+outgoing_endpoints:
+  # Simple GET endpoint using base URL from env
+  - name: public_health_check
+    method: GET
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/health"
+    frequency: 10
+    auth: none
+    timeout: 10
+
+  # GET endpoint with query params and template functions
+  - name: search_items
+    method: GET
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/items/search?q={{ urlEncode (randomString 6) }}&limit=10"
+    frequency: 8
+    auth: api_key_query
+    timeout: 15
+
+  # POST endpoint with JSON body templates
+  - name: create_order
+    method: POST
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/orders"
+    frequency: 5
+    auth: bearer_static
+    timeout: 20
+    headers:
+      x-trace-id: "{{ randomUUID }}"
+    body:
+      order_id: "{{ randomUUID }}"
+      user_id: "user-{{ randomInt 1000 9999 }}"
+      items:
+        - sku: "sku-{{ randomInt 100 999 }}"
+          quantity: 1
+      created_at: "{{ now }}"
+
+  # PUT endpoint using basic auth
+  - name: update_profile
+    method: PUT
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/profiles/{{ randomInt 1000 9999 }}"
+    frequency: 4
+    auth: basic_auth
+    timeout: 20
+    body:
+      email: "{{ randomEmail }}"
+      phone: "{{ randomPhone }}"
+
+  # DELETE endpoint using custom header
+  - name: delete_session
+    method: DELETE
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/sessions/{{ randomUUID }}"
+    frequency: 2
+    auth: custom_header
+    timeout: 10
+
+  # PATCH endpoint with inline auth override (custom header name)
+  - name: patch_settings
+    method: PATCH
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/settings"
+    frequency: 3
+    auth:
+      ref: custom_header
+      header_name: "x-settings-token"
+    timeout: 15
+    body:
+      notifications: true
+      locale: "en-US"
+
+  # Endpoint using token refresh flow
+  - name: list_secure_resources
+    method: GET
+    url_template: "{{ .Env.EXAMPLE_BASE_URL }}/secure/resources"
+    frequency: 6
+    auth: bearer_refresh
+    timeout: 20
+
+  # Endpoint reading config via config_path (external file example)
+  - name: external_definition
+    method: GET
+    config_path: "configs/examples/external_endpoint.yaml"
+    frequency: 1
+    auth: none
+    timeout: 10
+
+incoming_enabled: true
+
+incoming_routes:
+  # Simple GET route with two possible responses
+  - name: status_ping
+    path: /api/status
+    method: GET
+    enabled: true
+    responses:
+      - status: 200
+        share: 0.95
+        min_response_ms: 20
+        max_response_ms: 60
+      - status: 503
+        share: 0.05
+        min_response_ms: 100
+        max_response_ms: 300
+
+  # Route that accepts any HTTP method
+  - name: wildcard_route
+    path: /api/events
+    method: "*"
+    enabled: true
+    responses:
+      - status: 202
+        share: 0.9
+        min_response_ms: 50
+        max_response_ms: 150
+      - status: 429
+        share: 0.1
+        min_response_ms: 10
+        max_response_ms: 40
+
+  # POST route with slower responses
+  - name: create_ticket
+    path: /api/tickets
+    method: POST
+    enabled: true
+    responses:
+      - status: 201
+        share: 0.85
+        min_response_ms: 200
+        max_response_ms: 600
+      - status: 400
+        share: 0.1
+        min_response_ms: 50
+        max_response_ms: 150
+      - status: 500
+        share: 0.05
+        min_response_ms: 300
+        max_response_ms: 800
