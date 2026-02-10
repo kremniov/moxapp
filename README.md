@@ -54,6 +54,30 @@ Open the UI at:
 http://localhost:8080/
 ```
 
+### Docker Image Usage
+
+**Direct run**:
+
+```bash
+docker run --rm -p 8080:8080 kremniov/moxapp:latest
+```
+
+### Dockerfile Usage (with config and env)
+
+Use this pattern if you want to bake your config into an image and provide environment variables:
+
+```dockerfile
+FROM kremniov/moxapp:latest
+
+COPY configs/endpoints.yaml /configs/endpoints.yaml
+
+ENV EXAMPLE_BASE_URL="https://example.com"
+ENV EXAMPLE_API_KEY="your_api_key"
+
+ENTRYPOINT ["/moxapp"]
+CMD ["--config", "/configs/endpoints.yaml", "--yes"]
+```
+
 ## Features
 
 ### Outgoing Traffic Generation
