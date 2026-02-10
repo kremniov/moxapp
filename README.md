@@ -26,13 +26,13 @@ High-performance concurrent HTTP load test with DNS timing metrics.
 
 ## Overview
 
-This is a Golang port of the original PHP/Laravel load testing application, designed to achieve true concurrent HTTP request execution without blocking. The tool can sustain 45+ requests/second (and beyond) while maintaining accurate DNS resolution timing metrics.
+MoxApp simulates realistic infrastructure load with concurrent outgoing traffic and incoming request handling. It is lightweight, fully configurable via YAML, keeps metrics in memory, and includes a built-in web UI.
 
 ## Docker Hub
 
 ### Description
 
-High-performance HTTP load testing tool with DNS timing metrics, incoming route simulation, and a built-in web UI.
+Lightweight load testing tool for realistic traffic simulation with a built-in web UI.
 
 ### Category
 
