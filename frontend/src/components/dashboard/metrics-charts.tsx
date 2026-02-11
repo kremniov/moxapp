@@ -138,6 +138,7 @@ export function RpsChart({ rps, successRate }: RpsChartProps) {
                 fill="url(#rpsGradient)"
                 dot={false}
                 activeDot={{ r: 4, fill: 'oklch(70% 0.15 190)' }}
+                isAnimationActive={false}
               />
               </AreaChart>
             </ResponsiveContainer>
@@ -275,6 +276,7 @@ export function SuccessRateChart({ successRate }: SuccessRateChartProps) {
                 strokeWidth={2}
                 dot={false}
                 activeDot={{ r: 4, fill: currentColor }}
+                isAnimationActive={false}
               />
               </LineChart>
             </ResponsiveContainer>
