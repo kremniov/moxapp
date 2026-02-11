@@ -197,6 +197,7 @@ func runLoadTest(cmd *cobra.Command, args []string) {
 	// Start API server in background
 	go func() {
 		fmt.Printf("API server listening on http://localhost:%d\n", cfg.APIPort)
+		fmt.Printf("  - Web UI:    http://localhost:%d/\n", cfg.APIPort)
 		fmt.Printf("  - API Docs:  http://localhost:%d/api/docs/swagger\n", cfg.APIPort)
 		fmt.Printf("  - Metrics:   http://localhost:%d/api/metrics\n", cfg.APIPort)
 		fmt.Printf("  - Outgoing:  http://localhost:%d/api/outgoing/endpoints\n", cfg.APIPort)
