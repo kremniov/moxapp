@@ -1,4 +1,4 @@
-# MoxApp DNS Load Test - Golang
+# MoxApp
 
 High-performance concurrent HTTP load test with DNS timing metrics.
 
