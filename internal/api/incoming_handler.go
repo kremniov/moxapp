@@ -3,6 +3,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
@@ -86,6 +87,11 @@ func (s *Server) handleSimulatedRoute(w http.ResponseWriter, r *http.Request) {
 
 	// Build echo response
 	echoResponse := buildEchoResponse(r, route, path, pathSuffix, selectedResponse.StatusCode, float64(delayMs))
+
+	// Log if enabled
+	if s.configManager.GetConfig().LogAllRequests {
+		logIncomingResult(echoResponse)
+	}
 
 	// Write response
 	w.WriteHeader(selectedResponse.StatusCode)
@@ -189,6 +195,15 @@ func buildEchoResponse(r *http.Request, route *config.IncomingEndpoint, path, pa
 			SimulatedDelayMs: delayMs,
 		},
 	}
+}
+
+// logIncomingResult prints a structured log line for an incoming simulated request
+func logIncomingResult(echo EchoResponse) {
+	data, err := json.Marshal(echo)
+	if err != nil {
+		return
+	}
+	fmt.Printf("\r[INCOMING] %s\n", data)
 }
 
 // handleSimulatedRouteInfo provides information about available simulated routes
