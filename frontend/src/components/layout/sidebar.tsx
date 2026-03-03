@@ -142,7 +142,7 @@ export function Sidebar() {
           <p className="text-xs font-mono text-muted-foreground">
             DNS Load Test Tool
           </p>
-          <p className="text-xs font-mono text-muted-foreground/60">v1.0.0</p>
+          <p className="text-xs font-mono text-muted-foreground/60">v1.0.2</p>
         </div>
       </div>
     </aside>

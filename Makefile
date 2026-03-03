@@ -5,7 +5,7 @@
 
 # Variables
 BINARY_NAME=moxapp
-VERSION?=1.0.0
+VERSION?=1.0.2
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
 LDFLAGS=-ldflags "-w -s -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
 
